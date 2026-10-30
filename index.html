@@ -164,7 +164,7 @@
             <button class="secondary" onclick="togglePin('${task.id}', ${!!task.is_pinned})">${task.is_pinned ? "📌 해제" : "📌 고정"}</button>
             ${task.status !== "done"
               ? `<button onclick="completeTask('${task.id}')">${task.repeat_monthly ? "완료·다음달" : "완료"}</button>`
-              : `<button class="secondary" onclick="reopenTask('${task.id}')">복구</button>`}
+              : `<button class="secondary" onclick="reopenTask('${task.id}')">복구</button><button onclick="deleteTask('${task.id}')">삭제</button>`}
           </div>`;
         list.appendChild(div);
       });
@@ -246,6 +246,20 @@
       if(!res.ok) return alert("다음 달 갱신 실패");
       loadTasks();
     }
+    async function deleteTask(id) {
+      const task = allTasks.find(t => t.id === id);
+      if (!task || task.status !== "done") return alert("완료된 업무만 삭제할 수 있어.");
+      if (!confirm("완료된 업무를 영구 삭제할까요? 삭제한 업무는 복구할 수 없습니다.")) return;
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: headers()
+        });
+        if (!res.ok) throw new Error("삭제 실패");
+        await loadTasks();
+      } catch(err) { alert("삭제하지 못했습니다. 다시 시도해 주세요."); }
+    }
+
     function reopenTask(id) { updateStatus(id, "todo"); }
 
     if ("serviceWorker" in navigator) {
