@@ -3,65 +3,99 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111827" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon-192.png" />
   <title>규 업무비서</title>
   <style>
+    * { box-sizing: border-box; }
     body {
-      font-family: Arial, sans-serif;
-      background: #f6f7f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f3f4f6;
       margin: 0;
-      padding: 24px;
-      color: #222;
+      color: #111827;
     }
-    .wrap { max-width: 900px; margin: auto; }
-    h1 { margin-bottom: 8px; }
-    .sub { color: #666; margin-bottom: 24px; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 20px; }
+    .top {
+      display:flex; justify-content:space-between; align-items:center;
+      gap:12px; margin-bottom:16px;
+    }
+    h1 { margin:0; font-size:26px; }
+    .sub { color:#6b7280; font-size:14px; margin-top:4px; }
     .card {
-      background: #fff;
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+      background:#fff; border-radius:16px; padding:18px;
+      margin-bottom:16px; box-shadow:0 3px 14px rgba(0,0,0,.06);
+    }
+    .grid {
+      display:grid; grid-template-columns:1fr 2fr 1.3fr 0.8fr auto;
+      gap:8px;
     }
     input, select, button {
-      padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      margin: 4px 4px 4px 0;
+      width:100%; padding:11px 12px; border:1px solid #d1d5db;
+      border-radius:10px; font-size:14px;
     }
-    button { cursor: pointer; }
+    button {
+      cursor:pointer; background:#111827; color:#fff; border:none;
+      font-weight:700;
+    }
+    button.secondary { background:#e5e7eb; color:#111827; }
     .task {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 0;
-      border-bottom: 1px solid #eee;
+      display:flex; justify-content:space-between; align-items:center;
+      gap:12px; padding:14px 0; border-bottom:1px solid #eef0f2;
     }
-    .task:last-child { border-bottom: 0; }
-    .done { opacity: .55; text-decoration: line-through; }
-    .meta { font-size: 12px; color: #777; margin-top: 4px; }
+    .task:last-child { border-bottom:0; }
+    .done { opacity:.5; }
+    .done .title { text-decoration:line-through; }
+    .meta { color:#6b7280; font-size:12px; margin-top:5px; }
+    .badge {
+      display:inline-block; font-size:11px; padding:3px 7px;
+      background:#f3f4f6; border-radius:999px; margin-left:6px;
+    }
+    .toolbar {
+      display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;
+    }
+    .toolbar button { width:auto; padding:8px 12px; }
+    .install {
+      width:auto; display:none; white-space:nowrap;
+    }
+    @media (max-width: 720px) {
+      .grid { grid-template-columns:1fr; }
+      .task { align-items:flex-start; }
+      .task > div:last-child { min-width:72px; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>규 업무비서</h1>
-    <div class="sub">할 일 등록 · 완료 · 거래처별 관리</div>
-
-    <div class="card">
-      <h3>할 일 추가</h3>
-      <input id="client" placeholder="거래처명" />
-      <input id="title" placeholder="업무 내용" />
-      <input id="due" type="datetime-local" />
-      <select id="priority">
-        <option value="normal">보통</option>
-        <option value="high">중요</option>
-        <option value="low">낮음</option>
-      </select>
-      <button onclick="addTask()">추가</button>
+    <div class="top">
+      <div>
+        <h1>규 업무비서</h1>
+        <div class="sub">할 일 등록 · 완료 · 거래처별 관리</div>
+      </div>
+      <button id="installBtn" class="install">앱 설치</button>
     </div>
 
     <div class="card">
-      <h3>업무 목록</h3>
+      <h3>할 일 추가</h3>
+      <div class="grid">
+        <input id="client" placeholder="거래처명" />
+        <input id="title" placeholder="업무 내용" />
+        <input id="due" type="datetime-local" />
+        <select id="priority">
+          <option value="normal">보통</option>
+          <option value="high">중요</option>
+          <option value="low">낮음</option>
+        </select>
+        <button onclick="addTask()">추가</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <button class="secondary" onclick="setFilter('all')">전체</button>
+        <button class="secondary" onclick="setFilter('todo')">미완료</button>
+        <button class="secondary" onclick="setFilter('done')">완료</button>
+      </div>
       <div id="taskList">불러오는 중...</div>
     </div>
   </div>
@@ -69,22 +103,43 @@
   <script>
     const SUPABASE_URL = "https://jnlcevofdndcioxvjyew.supabase.co";
     const SUPABASE_KEY = "sb_publishable_kXUIwpnvm_48Kx84iKSpXw_GsPR3v2v";
+    let currentFilter = "all";
+    let allTasks = [];
+
+    function headers(extra={}) {
+      return {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        ...extra
+      };
+    }
 
     async function loadTasks() {
       const res = await fetch(
         `${SUPABASE_URL}/rest/v1/tasks?select=*&order=created_at.desc`,
-        {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`
-          }
-        }
+        { headers: headers() }
       );
+      if (!res.ok) {
+        document.getElementById("taskList").innerHTML =
+          "업무를 불러오지 못했습니다. Supabase 키를 확인해 주세요.";
+        return;
+      }
+      allTasks = await res.json();
+      renderTasks();
+    }
 
-      const tasks = await res.json();
+    function setFilter(v) {
+      currentFilter = v;
+      renderTasks();
+    }
+
+    function renderTasks() {
       const list = document.getElementById("taskList");
-      list.innerHTML = "";
+      let tasks = allTasks;
+      if (currentFilter === "todo") tasks = tasks.filter(t => t.status !== "done");
+      if (currentFilter === "done") tasks = tasks.filter(t => t.status === "done");
 
+      list.innerHTML = "";
       if (!tasks.length) {
         list.innerHTML = "등록된 업무가 없습니다.";
         return;
@@ -95,20 +150,27 @@
         div.className = "task" + (task.status === "done" ? " done" : "");
         div.innerHTML = `
           <div>
-            <strong>${task.client_name || "기타"} - ${task.title}</strong>
+            <div class="title">
+              <strong>${escapeHtml(task.client_name || "기타")} - ${escapeHtml(task.title)}</strong>
+              <span class="badge">${task.priority || "normal"}</span>
+            </div>
             <div class="meta">
               ${task.due_at ? new Date(task.due_at).toLocaleString("ko-KR") : "마감 없음"}
-              · ${task.priority}
             </div>
           </div>
           <div>
             ${task.status !== "done"
               ? `<button onclick="completeTask('${task.id}')">완료</button>`
-              : "완료"}
-          </div>
-        `;
+              : `<button class="secondary" onclick="reopenTask('${task.id}')">복구</button>`}
+          </div>`;
         list.appendChild(div);
       });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, m => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+      })[m]);
     }
 
     async function addTask() {
@@ -117,10 +179,7 @@
       const dueInput = document.getElementById("due").value;
       const priority = document.getElementById("priority").value;
 
-      if (!title) {
-        alert("업무 내용을 입력해줘.");
-        return;
-      }
+      if (!title) return alert("업무 내용을 입력해줘.");
 
       const body = {
         client_name,
@@ -133,45 +192,53 @@
 
       const res = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
         method: "POST",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
+        headers: headers({
           "Content-Type": "application/json",
           Prefer: "return=representation"
-        },
+        }),
         body: JSON.stringify(body)
       });
 
-      if (!res.ok) {
-        alert("등록 실패");
-        return;
-      }
+      if (!res.ok) return alert("등록 실패. Supabase 키/정책을 확인해줘.");
 
       document.getElementById("client").value = "";
       document.getElementById("title").value = "";
       document.getElementById("due").value = "";
-
       loadTasks();
     }
 
-    async function completeTask(id) {
+    async function updateStatus(id, status) {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${id}`, {
         method: "PATCH",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ status: "done" })
+        headers: headers({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ status })
       });
-
-      if (!res.ok) {
-        alert("완료 처리 실패");
-        return;
-      }
-
+      if (!res.ok) return alert("상태 변경 실패");
       loadTasks();
     }
+
+    function completeTask(id) { updateStatus(id, "done"); }
+    function reopenTask(id) { updateStatus(id, "todo"); }
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+    }
+
+    let deferredPrompt;
+    const installBtn = document.getElementById("installBtn");
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.style.display = "inline-block";
+    });
+
+    installBtn.addEventListener("click", async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installBtn.style.display = "none";
+    });
 
     loadTasks();
   </script>
