@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>규 업무비서</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6f7f9;
+      margin: 0;
+      padding: 24px;
+      color: #222;
+    }
+    .wrap { max-width: 900px; margin: auto; }
+    h1 { margin-bottom: 8px; }
+    .sub { color: #666; margin-bottom: 24px; }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+    }
+    input, select, button {
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      margin: 4px 4px 4px 0;
+    }
+    button { cursor: pointer; }
+    .task {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .task:last-child { border-bottom: 0; }
+    .done { opacity: .55; text-decoration: line-through; }
+    .meta { font-size: 12px; color: #777; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>규 업무비서</h1>
+    <div class="sub">할 일 등록 · 완료 · 거래처별 관리</div>
+
+    <div class="card">
+      <h3>할 일 추가</h3>
+      <input id="client" placeholder="거래처명" />
+      <input id="title" placeholder="업무 내용" />
+      <input id="due" type="datetime-local" />
+      <select id="priority">
+        <option value="normal">보통</option>
+        <option value="high">중요</option>
+        <option value="low">낮음</option>
+      </select>
+      <button onclick="addTask()">추가</button>
+    </div>
+
+    <div class="card">
+      <h3>업무 목록</h3>
+      <div id="taskList">불러오는 중...</div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "여기에_PROJECT_URL";
+    const SUPABASE_KEY = "여기에_PUBLISHABLE_KEY";
+
+    async function loadTasks() {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/tasks?select=*&order=created_at.desc`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
+
+      const tasks = await res.json();
+      const list = document.getElementById("taskList");
+      list.innerHTML = "";
+
+      if (!tasks.length) {
+        list.innerHTML = "등록된 업무가 없습니다.";
+        return;
+      }
+
+      tasks.forEach(task => {
+        const div = document.createElement("div");
+        div.className = "task" + (task.status === "done" ? " done" : "");
+        div.innerHTML = `
+          <div>
+            <strong>${task.client_name || "기타"} - ${task.title}</strong>
+            <div class="meta">
+              ${task.due_at ? new Date(task.due_at).toLocaleString("ko-KR") : "마감 없음"}
+              · ${task.priority}
+            </div>
+          </div>
+          <div>
+            ${task.status !== "done"
+              ? `<button onclick="completeTask('${task.id}')">완료</button>`
+              : "완료"}
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function addTask() {
+      const client_name = document.getElementById("client").value.trim();
+      const title = document.getElementById("title").value.trim();
+      const dueInput = document.getElementById("due").value;
+      const priority = document.getElementById("priority").value;
+
+      if (!title) {
+        alert("업무 내용을 입력해줘.");
+        return;
+      }
+
+      const body = {
+        client_name,
+        title,
+        due_at: dueInput ? new Date(dueInput).toISOString() : null,
+        priority,
+        status: "todo",
+        source: "web"
+      };
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation"
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        alert("등록 실패");
+        return;
+      }
+
+      document.getElementById("client").value = "";
+      document.getElementById("title").value = "";
+      document.getElementById("due").value = "";
+
+      loadTasks();
+    }
+
+    async function completeTask(id) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${id}`, {
+        method: "PATCH",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status: "done" })
+      });
+
+      if (!res.ok) {
+        alert("완료 처리 실패");
+        return;
+      }
+
+      loadTasks();
+    }
+
+    loadTasks();
+  </script>
+</body>
+</html>
